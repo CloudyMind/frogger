@@ -1,5 +1,4 @@
 (function() {
-
 /* Local Vars:
  *   models : Object[] -- 
  *   lengths : Object[] --
@@ -17,25 +16,20 @@ var lengths = [{width: 179, height: 21}, {width: 118, height: 21}, {width: 85, h
 var rows = [473, 443, 413, 383, 353, 323, 288, 261, 233, 203, 173, 143, 113];
 var context = null;
 
+
+// This polls an SQS queue and if Alexa sends a request to move, simulates a key press.
 var start_game = function() {
     game = new Game();
-    $(document).keydown(function(e) {
-        var arrow_key = get_arrow_key(e);
-        if (arrow_key) {
-            e.preventDefault(); 
-        }
-        if (game.dead === -1 && game.lives > 0) {
-            if (arrow_key === 'u'){ 
-                up();
-            } else if (arrow_key === 'd'){
-                down();
-            } else if (arrow_key === 'l'){
-                left();
-            } else if (arrow_key === 'r'){
-                right();
-            }
-        }
-    });
+
+    // retrieve config file and launch process to retrieve moves from cloud
+    $.getJSON("./config.json", function(res){
+        get_moves({
+            accessKeyId: res.creds.accessKeyId,
+            secretAccessKey: res.creds.secretAccessKey,
+            region: res.metadata.region
+        })
+    });    
+
     board = document.getElementById('game');
     context = board.getContext('2d');
     theme = document.createElement('audio');
@@ -52,8 +46,146 @@ var start_game = function() {
         make_cars();
         make_logs();
         draw_frog();
-        setInterval(game_loop, 50);
+        setInterval(game_loop, 200);
     };
+};
+
+var get_moves = function(creds) {
+    AWS.config.accessKeyId = creds.accessKeyId;
+    AWS.config.secretAccessKey = creds.secretAccessKey;
+    AWS.config.region = creds.region;
+    var dynamodb = new AWS.DynamoDB({region: 'us-east-1'});
+    var dynamo_table = 'frogger';
+
+    setInterval(
+        function() { 
+            var chosen_direction = '';
+            var chosen_spots = '';
+            dynamodb.scan({TableName: dynamo_table}, function(err, data) {
+                if (err) console.log(err, err.stack);
+                else { 
+                    for (i = 0; i < data.Items.length; i++) {
+                        
+                        if (data.Items[i].spots['S'] === 'to' | data.Items[i].spots['S'] === 'too') {
+                            data.Items[i].spots['S'] = '2'
+                        } else if (data.Items[i].spots['S'] === 'for') {
+                            data.Items[i].spots['S'] = '4'
+                        }
+
+                        if (data.Items[i].moved['S'] !== '1') {
+                            if (data.Items[i].direction['S'] === 'MoveUp' && data.Items[i].moved['S'] !== '1') {
+                                chosen_direction = data.Items[i].direction['S']
+                                chosen_spots = data.Items[i].spots['S']  
+                            } else if (data.Items[i].direction['S'] === 'MoveDown' && data.Items[i].moved['S'] !== '1') {
+                                chosen_direction = data.Items[i].direction['S']
+                                chosen_spots = data.Items[i].spots['S'] 
+                            } else if (data.Items[i].direction['S'] === 'MoveLeft' && data.Items[i].moved['S'] !== '1') {
+                                chosen_direction = data.Items[i].direction['S']
+                                chosen_spots = data.Items[i].spots['S'] 
+                            } else if (data.Items[i].direction['S'] === 'MoveRight' && data.Items[i].moved['S'] !== '1') {
+                                chosen_direction = data.Items[i].direction['S']
+                                chosen_spots = data.Items[i].spots['S'] 
+                            }
+                        }
+                    }
+
+                    if (game.dead === -1 && game.lives > 0) {
+                        if (chosen_direction === 'MoveUp'){ 
+                            for (i = 0; i < chosen_spots; i++) {
+                                var dynamo_params = {
+                                  Item: {
+                                   "direction": {
+                                     S: chosen_direction
+                                    }, 
+                                   "spots": {
+                                     S: chosen_spots
+                                    }, 
+                                   "moved": {
+                                     S: '1'
+                                    }
+                                  }, 
+                                  TableName: dynamo_table
+                                 };
+                                 dynamodb.putItem(dynamo_params, function(err, data) {
+                                    console.log('Frogger moved up ' + chosen_spots);
+                                   if (err) console.log(err, err.stack);
+                                   else     up();
+                                 });
+                            }
+                        } else if (chosen_direction === 'MoveDown'){ 
+                            for (i = 0; i < chosen_spots; i++) {
+                                var dynamo_params = {
+                                  Item: {
+                                   "direction": {
+                                     S: chosen_direction
+                                    }, 
+                                   "spots": {
+                                     S: chosen_spots
+                                    }, 
+                                   "moved": {
+                                     S: '1'
+                                    }
+                                  }, 
+                                  TableName: dynamo_table
+                                 };
+                                 dynamodb.putItem(dynamo_params, function(err, data) {
+                                    console.log('Frogger moved down ' + chosen_spots);
+                                   if (err) console.log(err, err.stack);
+                                   else     down(); 
+                                 });
+                            }
+                        } else if (chosen_direction === 'MoveLeft'){ 
+                            for (i = 0; i < chosen_spots; i++) {
+                                var dynamo_params = {
+                                  Item: {
+                                   "direction": {
+                                     S: chosen_direction
+                                    }, 
+                                   "spots": {
+                                     S: chosen_spots
+                                    }, 
+                                   "moved": {
+                                     S: '1'
+                                    }
+                                  }, 
+                                  TableName: dynamo_table
+                                 };
+                                 dynamodb.putItem(dynamo_params, function(err, data) {
+                                    console.log('Frogger moved left ' + chosen_spots);
+                                   if (err) console.log(err, err.stack);
+                                   else     left();
+                                 });
+                            }
+                        } else if (chosen_direction === 'MoveRight'){ 
+                            for (i = 0; i < chosen_spots; i++) {
+                                var dynamo_params = {
+                                  Item: {
+                                   "direction": {
+                                     S: chosen_direction
+                                    }, 
+                                   "spots": {
+                                     S: chosen_spots
+                                    }, 
+                                   "moved": {
+                                     S: '1'
+                                    }
+                                  }, 
+                                  TableName: dynamo_table
+                                 };
+                                 dynamodb.putItem(dynamo_params, function(err, data) {
+                                    console.log('Frogger moved right ' + chosen_spots);
+                                    if (err) console.log(err, err.stack);
+                                    else     right();
+                                });
+                            }
+                        } else {
+                            console.log('No move.')
+                        }
+                    }
+                }
+            }
+        );
+    }, 1000);
 };
 
 var game_loop = function() {

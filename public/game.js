@@ -23,7 +23,7 @@ var start_game = function() {
 
     // follow format in readme for config file setup
     // after config params obtained, launch process to retrieve moves from cloud
-    $.getJSON("./config.json", function(res){
+    $.getJSON("../config.json", function(res){
         get_moves({
             accessKeyId: res.creds.accessKeyId,
             secretAccessKey: res.creds.secretAccessKey,

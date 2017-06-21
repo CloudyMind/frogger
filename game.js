@@ -21,7 +21,8 @@ var context = null;
 var start_game = function() {
     game = new Game();
 
-    // retrieve config file and launch process to retrieve moves from cloud
+    // follow format in readme for config file setup
+    // after config params obtained, launch process to retrieve moves from cloud
     $.getJSON("./config.json", function(res){
         get_moves({
             accessKeyId: res.creds.accessKeyId,
